@@ -377,9 +377,9 @@ subroutine read_options_and_initialise_flexpart
   ! Initialize cloud-base mass fluxes for the convection scheme
   !************************************************************
   if (lconvection.eq.1) then
-    cbaseflux(0:nxmin1,0:nymin1,:)=0.
+    cbaseflux(0:nxmin1,0:nymin1)=0.
     do inest=1,numbnests
-      cbasefluxn(0:nxn(inest)-1,0:nyn(inest)-1,inest,:)=0.
+      cbasefluxn(0:nxn(inest)-1,0:nyn(inest)-1,inest)=0.
     end do
   endif
 

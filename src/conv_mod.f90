@@ -38,9 +38,10 @@ module conv_mod
     qsconv                            
   real,allocatable,dimension(:,:,:) :: & !
     fmass,                           & !
-    fmassfrac,                       & !
-    cbaseflux                         
-  real,allocatable,dimension(:,:,:,:) :: &
+    fmassfrac
+  real,allocatable,dimension(:,:) :: &
+    cbaseflux
+  real,allocatable,dimension(:,:,:) :: &
     cbasefluxn
   ! integer,dimension(na) :: &
   !   NENT
@@ -63,7 +64,7 @@ module conv_mod
 ! $OMP THREADPRIVATE( fmass, sub, fmassfrac, &
 ! $OMP pconv, phconv, dpr, pconv_hpa, phconv_hpa, &
 ! $OMP tconv, qconv, qsconv, psconv, tt2conv, td2conv, &
-! $OMP nconvtop,uvzlev,wsub,cbaseflux,cbasefluxn)
+! $OMP nconvtop,uvzlev,wsub)
 
 !$OMP THREADPRIVATE( psconv, tt2conv, td2conv,nconvtop)
 ! , &
@@ -85,8 +86,8 @@ subroutine alloc_convect
     fmass(nconvlevmax,nconvlevmax,numthreads),        &
     sub(nconvlevmax,numthreads), &
     fmassfrac(nconvlevmax,nconvlevmax,numthreads),   &
-    cbaseflux(0:nxmax-1,0:nymax-1,numthreads),                        &
-    cbasefluxn(0:nxmaxn-1,0:nymaxn-1,numbnests,numthreads),            &
+    cbaseflux(0:nxmax-1,0:nymax-1),                        &
+    cbasefluxn(0:nxmaxn-1,0:nymaxn-1,numbnests),            &
     tconv(na,numthreads),qconv(na,numthreads),qsconv(na,numthreads),stat=stat)
   if (stat.ne.0) error stop "Could not allocate convection arrays"
 
@@ -371,7 +372,7 @@ subroutine convmix(itime)
     end if
 
   ! Calculate translocation matrix
-    call calcmatrix(lconv,delt,cbaseflux(ix,jy,ithread),ithread)
+    call calcmatrix(lconv,delt,cbaseflux(ix,jy),ithread)
     
   ! treat particle only if column has convection
     if (lconv .eqv. .true.) then
@@ -473,7 +474,7 @@ subroutine convmix(itime)
 
   ! calculate translocation matrix
   !*******************************
-        call calcmatrix(lconv,delt,cbasefluxn(ix,jy,inest,ithread),ithread)
+        call calcmatrix(lconv,delt,cbasefluxn(ix,jy,inest),ithread)
         igrold = igr
         ktop = 0
       endif
