@@ -169,10 +169,13 @@ subroutine timemanager
   lrecoutstart=lrecoutnext-lrecoutaver/2
   lrecoutend=lrecoutnext+lrecoutaver/2
 
-  ! Initialise the nan count for CBL option
-  !****************************************
+  ! Initialise the nan count and the gate counters for CBL option
+  !**************************************************************
   sum_nan_count(:) = 0
   nan_count(:) = 0
+  cbl_gate_count(:,:) = 0_i8
+  cbl_hol_range(1,:) =  huge(0.)
+  cbl_hol_range(2,:) = -huge(0.)
 
   !**********************************************************************
   ! Loop over the whole modelling period in time steps of mintime seconds
@@ -778,7 +781,19 @@ subroutine timemanager
   deallocate(xpoint1,xpoint2,ypoint1,ypoint2,zpoint1,zpoint2)
   deallocate(xmass)
   deallocate(ireleasestart,ireleaseend,npart,kindz)
-  deallocate(nan_count)
+
+  ! How much of the CBL scheme this run actually used
+  !*************************************************
+  if (cblflag.eq.1) then
+    write(*,'(a,i16,a,i16)') ' CBL gate drift   evaluated ', &
+      sum(cbl_gate_count(1,:)),' satisfied ',sum(cbl_gate_count(2,:))
+    write(*,'(a,i16,a,i16)') ' CBL gate release evaluated ', &
+      sum(cbl_gate_count(3,:)),' satisfied ',sum(cbl_gate_count(4,:))
+    if (sum(cbl_gate_count(1,:))+sum(cbl_gate_count(3,:)).gt.0_i8) &
+      write(*,'(a,es13.5,a,es13.5)') ' CBL gate -h/L range ', &
+        minval(cbl_hol_range(1,:)),' to ',maxval(cbl_hol_range(2,:))
+  endif
+  deallocate(nan_count,cbl_gate_count,cbl_hol_range)
   if (ipout.ne.0) deallocate( partopt )
   if (iout.ne.0) then
     deallocate(outheight,outheighthalf)

@@ -383,10 +383,12 @@ subroutine read_options_and_initialise_flexpart
     end do
   endif
 
-  ! Allocating nan_count for CBL option
-  !************************************
+  ! Allocating nan_count and the gate counters for CBL option
+  !**********************************************************
   allocate(nan_count(numthreads), stat=stat)
   if (stat.ne.0) error stop "Could not allocate nan_count"
+  allocate(cbl_gate_count(4,numthreads), cbl_hol_range(2,numthreads), stat=stat)
+  if (stat.ne.0) error stop "Could not allocate the CBL gate counters"
 
 end subroutine read_options_and_initialise_flexpart
 

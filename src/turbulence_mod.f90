@@ -19,7 +19,39 @@ module turbulence_mod
 !$OMP THREADPRIVATE(ust,wst,ol,h,zeta,sigu,sigv,tlu,tlv,tlw, &
 !$OMP sigw,dsigwdz,dsigw2dz)
 
+  ! Smallest -h/L at which the skewed CBL scheme is used, see is_convective.
+  real,parameter :: cbl_hol_min=5.
+
 contains
+
+logical function is_convective(h_mix,l_obukhov,isite,ithread)
+  !  gate on the skewed CBL scheme of cbl_mod.
+  !  -h/L : mixing height over the Obukhov length
+  !  called at:
+  !     the drift step
+  !     the initial vertical velocity
+  !  timemanager reports the totals
+  implicit none
+
+  real,intent(in) ::       &
+    h_mix,                 & ! mixing height
+    l_obukhov                ! Obukhov length, negative when convective
+  integer,intent(in) ::    &
+    isite,                 & ! 1 at the drift step, 2 at release
+    ithread                  ! thread number, 1-based
+
+  real :: hol
+
+  hol=-h_mix/l_obukhov
+  is_convective=hol.gt.cbl_hol_min
+
+  cbl_gate_count(2*isite-1,ithread)=cbl_gate_count(2*isite-1,ithread)+1_i8
+  if (is_convective) &
+    cbl_gate_count(2*isite,ithread)=cbl_gate_count(2*isite,ithread)+1_i8
+  cbl_hol_range(1,ithread)=min(cbl_hol_range(1,ithread),hol)
+  cbl_hol_range(2,ithread)=max(cbl_hol_range(2,ithread),hol)
+
+end function is_convective
 
 subroutine turbulence_pbl(ipart,nrand,dt,zts,rhoa,rhograd,thread)
   
@@ -99,7 +131,7 @@ subroutine turbulence_pbl(ipart,nrand,dt,zts,rhoa,rhograd,thread)
   !************** CBL options added by mc see routine cblf90 ***
           ! LB needs to be checked if this works with openmp
           if (cblflag.eq.1) then  !modified by mc
-            if (-h/ol.gt.5) then  !modified by mc
+            if (is_convective(h,ol,1,thread+1)) then
               flagrein=0
               nrand=nrand+1
               old_wp_buf=wp

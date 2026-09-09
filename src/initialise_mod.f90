@@ -779,7 +779,7 @@ subroutine init_particle(itime,ipart,ithread)
     if (.not.turbswitch) then     ! modified by mc
       part(ipart)%turbvel%w=part(ipart)%turbvel%w*sigw
     else if (cblflag.eq.1) then   ! modified by mc
-      if(-h/ol.gt.5) then
+      if (is_convective(h,ol,2,ithread+1)) then
   !if (ol.lt.0.) then
   !if (ol.gt.0.) then !by mc : only for test correct is lt.0
         call init_cbl_vel( &

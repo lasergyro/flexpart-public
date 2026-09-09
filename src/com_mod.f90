@@ -519,6 +519,19 @@ module com_mod
   !added by mc , note that for safety sum_nan_count(N) with N>maxtl
 
   !********************************************************************
+  ! coverage of the CBL skewed scheme: how often -h/L > cbl_hol_min
+  ! is true, and the range of -h/L seen. 
+  ! Counted per thread, summed once at the end of the run.
+  !********************************************************************
+  integer,parameter :: i8=selected_int_kind(18) ! the drift gate is evaluated
+                                                ! more than 2**31 times
+  integer(kind=i8),allocatable,dimension(:,:) :: cbl_gate_count ! (4,numthreads)
+  real,allocatable,dimension(:,:) :: cbl_hol_range              ! (2,numthreads)
+  ! cbl_gate_count rows: 1,2 evaluated and satisfied at the drift step,
+  !                      3,4 evaluated and satisfied at release.
+  ! cbl_hol_range  rows: 1 smallest -h/L seen, 2 largest.
+
+  !********************************************************************
   ! variables to test well-mixed state of CBL scheme not to be included in final release
   !********************************************************************
   real :: well_mixed_vector(50),h_well,well_mixed_norm,avg_air_dens(50),avg_ol,avg_wst,avg_h 

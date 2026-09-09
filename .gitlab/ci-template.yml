@@ -245,6 +245,26 @@ etex-simulation:
       - ./tests/output_etex
     expire_in: 10 mins
 
+cbl-simulation:
+  stage: test
+  image: registry.phaidra.org/flexpart/flexpart/rockylinux${OS_VERSION}:${IMAGE_TAG}
+  needs:
+    - build-meter
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master" || $CI_COMMIT_BRANCH == "development"
+  # uses a midday release on three of the fields etex-simulation 
+  # checks the model's cbl gate counts to make sure the scheme is
+  # entered.
+  script:
+    - for f in EC1994102312 EC1994102318 EC1994102400; do wget -P tests/testdata/ "https://webdata.wolke.img.univie.ac.at/flexpart/$f"; done
+    - ulimit -s unlimited
+    - bash ./tests/run_cbl_test.sh
+  artifacts:
+    when: always
+    paths:
+      - ./tests/cbl_test.txt
+    expire_in: 10 mins
+
 settling:
   image: registry.phaidra.org/flexpart/flexpart/python${PY_VERSION}:${IMAGE_TAG}
   stage: compare
