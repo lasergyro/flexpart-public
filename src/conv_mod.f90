@@ -454,8 +454,8 @@ subroutine convmix(itime)
       ! sumall = sumall + 1
       if (igr .ne. igrold) then
   ! we are in a new grid column
-        jy = (igr-1)/nxn(inest)
-        ix = igr - jy*nxn(inest) - 1
+        ix = (igr-1)/nyn(inest)
+        jy = igr - ix*nyn(inest) - 1
 
   ! Interpolate all meteorological data needed for the convection scheme
         psconv=(psn(ix,jy,1,mind1,inest)*dt2+ &
