@@ -166,8 +166,8 @@ subroutine convmix(itime)
 
   implicit none
 
-  integer :: igr,igrold, ipart, itime, ix, i, j, ik, inest
-  integer :: ipconv,ithread,stat,countconv
+  integer :: igrold, ipart, itime, ix, i, j, inest
+  integer :: ipconv,ithread,stat
   integer :: jy, kpart, ktop, ngrid,kz
   integer,allocatable :: igrid(:), ipoint(:), igridn(:,:)
 
@@ -185,7 +185,7 @@ subroutine convmix(itime)
 
   ! OMP changes
   integer :: cnt,kk
-  integer,allocatable,dimension(:) :: frst,kkcnt
+  integer,allocatable,dimension(:) :: frst
   double precision :: tmarray(2)
 
   integer :: alivepart
@@ -306,27 +306,18 @@ subroutine convmix(itime)
   !LB changes following the CTM version
   allocate( frst(nx*(ny+1)+1),stat=stat)
   if (stat.ne.0) error stop "Could not allocate frst"
-  frst(1) = 1
-  cnt = 2
-  igrold = igrid(1)
-  ! Looping over all particles and counting how many in each igrid reside.
-  ! This is saved in frst. The number of consecutive particles in igrid is saved in frst(i)
+  ! particles with igrid=-1 are sorted first and open no run;
+  ! the c-th run is a column with particles from frst(c) to frst(c+1)-1
+  cnt = 0
+  igrold = -1
   do kpart=1,alivepart
     if (igrold.ne.igrid(kpart)) then
+      cnt=cnt+1
       frst(cnt) = kpart
       igrold=igrid(kpart)
-      cnt=cnt+1
     endif
-  end do 
-  frst(cnt) = alivepart+1
-
-  allocate(kkcnt(cnt-1))
-  countconv=0
-  do kk=1,cnt-1
-    if (igrid(frst(kk)).eq.-1) cycle ! Only consider grids that have particles inside
-    countconv=countconv+1
-    kkcnt(countconv)=kk
   end do
+  frst(cnt+1) = alivepart+1
 
 !$OMP PARALLEL PRIVATE(kk,jy,ix,tmarray,j,kz,ktop,lconv,kpart,ipart,&
 !$OMP ztold,nage,ipconv,itage,ithread,lcalcflux)
@@ -338,10 +329,7 @@ subroutine convmix(itime)
 #endif
 
 !$OMP DO SCHEDULE(dynamic)
-  do ik=1,countconv
-    
-    !if (igrid(frst(kk)).eq.-1) cycle
-    kk=kkcnt(ik)
+  do kk=1,cnt
     ! Find horizontal location of grid column
     ix = (igrid(frst(kk))-1)/ny
     jy = igrid(frst(kk)) - ix*ny - 1
@@ -438,80 +426,95 @@ subroutine convmix(itime)
 
   ! Now visit all grid columns where particles are present
   ! by going through the sorted particles
-!$OMP PARALLEL PRIVATE (igrold,kpart,ipart,igr,jy,ix,kz,lconv, &
-!$OMP ktop,ztold,nage,ipconv,itage,lcalcflux,ithread)
+
+    allocate( frst(nxn(inest)*(nyn(inest)+1)+1),stat=stat)
+    if (stat.ne.0) error stop "Could not allocate frst"
+  ! particles with igrid=-1 are sorted first and open no run;
+  ! the c-th run is a column with particles from frst(c) to frst(c+1)-1
+    cnt = 0
     igrold = -1
+    do kpart=1,alivepart
+      if (igrold.ne.igrid(kpart)) then
+        cnt=cnt+1
+        frst(cnt) = kpart
+        igrold=igrid(kpart)
+      endif
+    end do
+    frst(cnt+1) = alivepart+1
+
+!$OMP PARALLEL PRIVATE (kk,kpart,ipart,jy,ix,kz,lconv, &
+!$OMP ktop,ztold,nage,ipconv,itage,lcalcflux,ithread)
+
 #if (defined _OPENMP)
     ithread = OMP_GET_THREAD_NUM()+1 ! Starts at 1
 #else
     ithread = 1
 #endif
 !$OMP DO SCHEDULE(dynamic)
-    do kpart=1,alivepart
-      igr = igrid(kpart)
-      if (igr .eq. -1) cycle
-      ipart = ipoint(kpart)
-      ! sumall = sumall + 1
-      if (igr .ne. igrold) then
-  ! we are in a new grid column
-        ix = (igr-1)/nyn(inest)
-        jy = igr - ix*nyn(inest) - 1
+    do kk=1,cnt
+  ! Find horizontal location of grid column
+      ix = (igrid(frst(kk))-1)/nyn(inest)
+      jy = igrid(frst(kk)) - ix*nyn(inest) - 1
 
   ! Interpolate all meteorological data needed for the convection scheme
-        psconv=(psn(ix,jy,1,mind1,inest)*dt2+ &
-             psn(ix,jy,1,mind2,inest)*dt1)*dtt
-        tt2conv=(tt2n(ix,jy,1,mind1,inest)*dt2+ &
-             tt2n(ix,jy,1,mind2,inest)*dt1)*dtt
-        td2conv=(td2n(ix,jy,1,mind1,inest)*dt2+ &
-             td2n(ix,jy,1,mind2,inest)*dt1)*dtt
-!!$        do kz=1,nconvlev+1    !old
-        do kz=1,nuvz-1           !bugfix
-          tconv(kz,ithread)=(tthn(ix,jy,kz+1,mind1,inest)*dt2+ &
-               tthn(ix,jy,kz+1,mind2,inest)*dt1)*dtt
-          qconv(kz,ithread)=(qvhn(ix,jy,kz+1,mind1,inest)*dt2+ &
-               qvhn(ix,jy,kz+1,mind2,inest)*dt1)*dtt
-        end do
+      psconv=(psn(ix,jy,1,mind1,inest)*dt2+ &
+           psn(ix,jy,1,mind2,inest)*dt1)*dtt
+      tt2conv=(tt2n(ix,jy,1,mind1,inest)*dt2+ &
+           tt2n(ix,jy,1,mind2,inest)*dt1)*dtt
+      td2conv=(td2n(ix,jy,1,mind1,inest)*dt2+ &
+           td2n(ix,jy,1,mind2,inest)*dt1)*dtt
+!!$      do kz=1,nconvlev+1    !old
+      do kz=1,nuvz-1           !bugfix
+        tconv(kz,ithread)=(tthn(ix,jy,kz+1,mind1,inest)*dt2+ &
+             tthn(ix,jy,kz+1,mind2,inest)*dt1)*dtt
+        qconv(kz,ithread)=(qvhn(ix,jy,kz+1,mind1,inest)*dt2+ &
+             qvhn(ix,jy,kz+1,mind2,inest)*dt1)*dtt
+      end do
 
   ! calculate translocation matrix
   !*******************************
-        call calcmatrix(lconv,delt,cbasefluxn(ix,jy,inest),ithread)
-        igrold = igr
-        ktop = 0
-      endif
+      call calcmatrix(lconv,delt,cbasefluxn(ix,jy,inest),ithread)
 
   ! treat particle only if column has convection
       if (lconv .eqv. .true.) then
+        ktop = 0
   ! assign new vertical position to particle
-        ztold=real(part(ipart)%z)
-        call redist(itime,ipart,ktop,ipconv,ithread)
-  !      if (ipconv.le.0) sumconv = sumconv+1
+        do kpart=frst(kk), frst(kk+1)-1
+          ipart = ipoint(kpart)
+          ztold=real(part(ipart)%z)
+          call redist(itime,ipart,ktop,ipconv,ithread)
+  !        if (ipconv.le.0) sumconv = sumconv+1
 
   ! Calculate the gross fluxes across layer interfaces
   !***************************************************
-        if (iflux.eq.1) then
-          lcalcflux=.true.
-          if (lagespectra.eq.1) then
-            nage=0
-            itage=abs(itime-part(ipart)%tstart)
-            do inage=1,nageclass
-              if ((itage.lt.lage(inage)).and.(part(ipart)%alive)) exit
-              nage=inage
-            end do
-            if (nage.eq.nageclass) lcalcflux=.false.
-            nage=nage+1
-          else
-            nage=1
-          endif
+          if (iflux.eq.1) then
+            lcalcflux=.true.
+            if (lagespectra.eq.1) then
+              nage=0
+              itage=abs(itime-part(ipart)%tstart)
+              do inage=1,nageclass
+                if ((itage.lt.lage(inage)).and.(part(ipart)%alive)) exit
+                nage=inage
+              end do
+              if (nage.eq.nageclass) lcalcflux=.false.
+              nage=nage+1
+            else
+              nage=1
+            endif
 
-          if (lcalcflux) &
-            call calcfluxes(itime,nage,ipart,real(part(ipart)%xlon), &
-               real(part(ipart)%ylat),ztold,ithread)
-        endif
+            if (lcalcflux) &
+              call calcfluxes(itime,nage,ipart,real(part(ipart)%xlon), &
+                 real(part(ipart)%ylat),ztold,ithread)
+          endif
+        end do
+
       endif !(lconv .eqv. .true.)
 
     end do
 !$OMP END DO
 !$OMP END PARALLEL
+
+    deallocate(frst)
   end do
   ! OpenMP Reduction for dynamically allocated arrays. This is done manually since this
   ! is not yet supported in most OpenMP versions
